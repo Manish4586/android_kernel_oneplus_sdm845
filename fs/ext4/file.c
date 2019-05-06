@@ -79,7 +79,7 @@ ext4_unaligned_aio(struct inode *inode, struct iov_iter *from, loff_t pos)
 	struct super_block *sb = inode->i_sb;
 	int blockmask = sb->s_blocksize - 1;
 
-	if (pos >= ALIGN(i_size_read(inode), sb->s_blocksize))
+	if (pos >= i_size_read(inode))
 		return 0;
 
 	if ((pos | iov_iter_alignment(from)) & blockmask)
@@ -168,11 +168,6 @@ ext4_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	if (ret > 0)
 		ret = generic_write_sync(iocb, ret);
 
-	if (memcmp(current->group_leader->comm, "logd", 4) &&
-		memcmp(current->group_leader->comm, "logcat", 6)) {
-		current->compensate_need = 1;
-		current->compensate_time += 4000000;
-	}
 	return ret;
 
 out:
@@ -697,4 +692,3 @@ const struct inode_operations ext4_file_inode_operations = {
 	.set_acl	= ext4_set_acl,
 	.fiemap		= ext4_fiemap,
 };
-
