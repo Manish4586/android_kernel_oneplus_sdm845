@@ -22,6 +22,14 @@
 #include <drm/drmP.h>
 #include "drm_internal.h"
 
+#include <linux/list.h>
+#include <linux/of.h>
+#include <linux/kobject.h>
+#include <linux/string.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <drm/drm_mipi_dsi.h>
+
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
 
@@ -326,8 +334,11 @@ static ssize_t aod_store(struct device *dev,
 }
 
 
-int oneplus_force_screenfp = 0;
-int oneplus_panel_alpha = 0;
+int oneplus_force_screenfp;
+int oneplus_panel_alpha;
+int op_dimlayer_bl_enable = 0;
+int op_dp_enable = 0;
+int op_dither_enable = 0;
 extern int oneplus_get_panel_brightness_to_alpha(void);
 
 static ssize_t oneplus_display_get_dim_alpha(struct device *dev,
@@ -351,7 +362,6 @@ static ssize_t oneplus_display_get_forcescreenfp(struct device *dev,
 						 struct device_attribute *attr,
 						 char *buf)
 {
-
 	struct drm_connector *connector = to_drm_connector(dev);
 	int ret = 0;
 	oneplus_force_screenfp = dsi_display_get_fp_hbm_mode(connector);
@@ -361,7 +371,6 @@ static ssize_t oneplus_display_get_forcescreenfp(struct device *dev,
 					"1--finger-hbm mode(600)\n",
 					oneplus_force_screenfp);
 	return sprintf(buf, "%d\n", oneplus_force_screenfp);
-
 }
 
 static ssize_t oneplus_display_set_forcescreenfp(struct device *dev,
@@ -380,6 +389,59 @@ static ssize_t oneplus_display_set_forcescreenfp(struct device *dev,
 	ret = dsi_display_set_fp_hbm_mode(connector, oneplus_force_screenfp);
 	if (ret)
 		pr_err("set hbm mode(%d) fail\n", oneplus_force_screenfp);
+	return count;
+}
+
+static ssize_t op_display_get_dimlayer_enable(struct device *dev,
+					      struct device_attribute *attr,
+					      char *buf)
+{
+	return sprintf(buf, "%d\n", op_dimlayer_bl_enable);
+}
+
+static ssize_t op_display_set_dimlayer_enable(struct device *dev,
+					      struct device_attribute *attr,
+					      const char *buf,
+					      size_t count)
+{
+	int err = sscanf(buf, "%d", &op_dimlayer_bl_enable);
+	if (err < 0)
+		pr_err("op_display_set_dimlayer_enable sscanf failed");
+	return count;
+}
+
+static ssize_t op_display_get_dither_enable(struct device *dev,
+					    struct device_attribute *attr,
+					    char *buf)
+{
+	return sprintf(buf, "%d\n", op_dither_enable);
+}
+
+static ssize_t op_display_set_dither_enable(struct device *dev,
+					    struct device_attribute *attr,
+					    const char *buf,
+					    size_t count)
+{
+	int err = sscanf(buf, "%d", &op_dither_enable);
+	if (err < 0)
+		pr_err("op_display_set_dither_enable sscanf failed");
+	return count;
+}
+
+static ssize_t op_display_get_dp_enable(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return sprintf(buf, "%d\n", op_dp_enable);
+}
+
+static ssize_t op_display_set_dp_enable(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf,
+					size_t count)
+{
+	sscanf(buf, "%d", &op_dp_enable);
+
 	return count;
 }
 
@@ -410,6 +472,9 @@ static DEVICE_ATTR(notify_fppress, S_IRUGO | S_IWUSR, NULL, oneplus_display_noti
 static DEVICE_ATTR(dim_alpha, S_IRUGO | S_IWUSR, oneplus_display_get_dim_alpha, oneplus_display_set_dim_alpha);
 static DEVICE_ATTR(notify_dim, S_IRUGO | S_IWUSR, NULL, oneplus_display_notify_dim);
 static DEVICE_ATTR(notify_aod, S_IRUGO | S_IWUSR, NULL, oneplus_display_notify_aod_hid);
+static DEVICE_ATTR(dp_en, S_IRUGO | S_IWUSR, op_display_get_dp_enable, op_display_set_dp_enable);
+static DEVICE_ATTR(dither_en, S_IRUGO | S_IWUSR, op_display_get_dither_enable, op_display_set_dither_enable);
+static DEVICE_ATTR(dimlayer_bl_en, S_IRUGO | S_IWUSR, op_display_get_dimlayer_enable, op_display_set_dimlayer_enable);
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_status.attr,
@@ -424,6 +489,9 @@ static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_notify_fppress.attr,
 	&dev_attr_notify_dim.attr,
 	&dev_attr_notify_aod.attr,
+	&dev_attr_dimlayer_bl_en.attr,
+	&dev_attr_dp_en.attr,
+	&dev_attr_dither_en.attr,
 	NULL
 };
 
