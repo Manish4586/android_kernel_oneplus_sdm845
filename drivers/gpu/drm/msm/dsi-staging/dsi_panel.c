@@ -864,9 +864,6 @@ static int dsi_panel_led_bl_register(struct dsi_panel *panel,
 }
 #endif
 
-extern int op_dimlayer_bl_alpha;
-extern int op_dimlayer_bl_enabled;
-extern int op_dimlayer_bl_enable_real;
 bool HBM_flag;
 
 int dsi_panel_update_backlight(struct dsi_panel *panel,
@@ -881,24 +878,6 @@ int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 	dsi = &panel->mipi_device;
-	/* add for fingerprint*/
-	if (panel->is_hbm_enabled) {
-		pr_debug("OPEN HBM\n");
-		return 0;
-	}
-	/*** DC Backlight config ***/
-	if (op_dimlayer_bl_enabled != op_dimlayer_bl_enable_real) {
-		op_dimlayer_bl_enable_real = op_dimlayer_bl_enabled;
-		if (op_dimlayer_bl_enable_real) {
-		bl_lvl = op_dimlayer_bl_alpha;
-			pr_err("dc light enable\n");
-		} else {
-			pr_err("dc light disenable\n");
-		}
-	}
-	if (op_dimlayer_bl_enable_real) {
-		bl_lvl = op_dimlayer_bl_alpha;
-	}
 
 	if (panel->bl_config.bl_high2bit) {
 		if (HBM_flag == true)
@@ -918,12 +897,6 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
 	struct dsi_backlight_config *bl = &panel->bl_config;
-	static bool first_bl_level = true;
-
-	if (first_bl_level || (bl_lvl == 0)) {
-        pr_debug("---backlight level = %d---\n", bl_lvl);
-        first_bl_level = (bl_lvl == 0)? true : false;
-	}
 
 	if (panel->type == EXT_BRIDGE)
 		return 0;
@@ -2376,7 +2349,9 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 	const char *data;
 	u32 val = 0;
 
-	bl_type = of_get_property(of_node, "qcom,mdss-dsi-bl-pmic-control-type", NULL);
+	bl_type = of_get_property(of_node,
+				  "qcom,mdss-dsi-bl-pmic-control-type",
+				  NULL);
 	if (!bl_type) {
 		panel->bl_config.type = DSI_BACKLIGHT_UNKNOWN;
 	} else if (!strcmp(bl_type, "bl_ctrl_pwm")) {
@@ -2386,7 +2361,8 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 	} else if (!strcmp(bl_type, "bl_ctrl_dcs")) {
 		panel->bl_config.type = DSI_BACKLIGHT_DCS;
 	} else {
-		pr_debug("[%s] bl-pmic-control-type unknown-%s\n", panel->name, bl_type);
+		pr_debug("[%s] bl-pmic-control-type unknown-%s\n",
+			 panel->name, bl_type);
 		panel->bl_config.type = DSI_BACKLIGHT_UNKNOWN;
 	}
 
@@ -2396,7 +2372,8 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 	} else if (!strcmp(data, "delay_until_first_frame")) {
 		panel->bl_config.bl_update = BL_UPDATE_DELAY_UNTIL_FIRST_FRAME;
 	} else {
-		pr_debug("[%s] No valid bl-update-flag: %s\n", panel->name, data);
+		pr_debug("[%s] No valid bl-update-flag: %s\n",
+						panel->name, data);
 		panel->bl_config.bl_update = BL_UPDATE_NONE;
 	}
 
@@ -2405,7 +2382,8 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 
 	rc = of_property_read_u32(of_node, "qcom,mdss-dsi-bl-min-level", &val);
 	if (rc) {
-		pr_debug("[%s] bl-min-level unspecified, defaulting to zero\n", panel->name);
+		pr_debug("[%s] bl-min-level unspecified, defaulting to zero\n",
+			 panel->name);
 		panel->bl_config.bl_min_level = 0;
 	} else {
 		panel->bl_config.bl_min_level = val;
@@ -2413,24 +2391,18 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 
 	rc = of_property_read_u32(of_node, "qcom,mdss-dsi-bl-max-level", &val);
 	if (rc) {
-		pr_debug("[%s] bl-max-level unspecified, defaulting to max level\n", panel->name);
+		pr_debug("[%s] bl-max-level unspecified, defaulting to max level\n",
+			 panel->name);
 		panel->bl_config.bl_max_level = MAX_BL_LEVEL;
 	} else {
 		panel->bl_config.bl_max_level = val;
 	}
 
-	rc = of_property_read_u32(of_node, "qcom,mdss-brightness-default-val", &val);
+	rc = of_property_read_u32(of_node, "qcom,mdss-brightness-max-level",
+		&val);
 	if (rc) {
-		pr_debug("[%s] brightness-default-val unspecified, defaulting to val\n", panel->name);
-		panel->bl_config.bl_def_val = 200;
-	} else {
-		panel->bl_config.bl_def_val = val;
-	}
-	pr_err("default backlight bl_def_val= %d\n", panel->bl_config.bl_def_val);
-
-	rc = of_property_read_u32(of_node, "qcom,mdss-brightness-max-level", &val);
-	if (rc) {
-		pr_debug("[%s] brigheness-max-level unspecified, defaulting to 255\n", panel->name);
+		pr_debug("[%s] brigheness-max-level unspecified, defaulting to 255\n",
+			 panel->name);
 		panel->bl_config.brightness_max_level = 255;
 	} else {
 		panel->bl_config.brightness_max_level = val;
@@ -2439,12 +2411,15 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel,
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(&panel->bl_config, of_node);
 		if (rc) {
-			pr_err("[%s] failed to parse pwm config, rc=%d\n", panel->name, rc);
+			pr_err("[%s] failed to parse pwm config, rc=%d\n",
+			       panel->name, rc);
 			goto error;
 		}
 	}
 
-	panel->bl_config.en_gpio = of_get_named_gpio(of_node, "qcom,platform-bklight-en-gpio", 0);
+	panel->bl_config.en_gpio = of_get_named_gpio(of_node,
+					      "qcom,platform-bklight-en-gpio",
+					      0);
 	if (!gpio_is_valid(panel->bl_config.en_gpio)) {
 		pr_debug("[%s] failed get bklt gpio, rc=%d\n", panel->name, rc);
 		rc = 0;
